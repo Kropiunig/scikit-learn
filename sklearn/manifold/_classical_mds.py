@@ -192,6 +192,13 @@ class ClassicalMDS(BaseEstimator):
         # Set the signs of eigenvectors to enforce deterministic output
         U, _ = svd_flip(U, None)
 
+        # Negative eigenvalues arise for non-Euclidean dissimilarities (e.g.
+        # metric="precomputed" with a non-Euclidean matrix) or rank-deficient
+        # inputs where n_components exceeds the number of positive eigenvalues.
+        # Such dimensions cannot be embedded in Euclidean space, so clip them
+        # to zero to avoid NaNs from np.sqrt of a negative number.
+        w = np.clip(w, 0, None)
+
         self.embedding_ = np.sqrt(w) * U
         self.eigenvalues_ = w
 

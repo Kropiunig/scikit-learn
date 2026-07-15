@@ -66,3 +66,34 @@ def test_classical_mds_metric_params():
     Z3 = cmds.fit_transform(X)
 
     assert not np.allclose(Z1, Z3)
+
+
+def test_classical_mds_non_euclidean_no_nan():
+    # Non-Euclidean precomputed dissimilarities (the defining PCoA/Torgerson
+    # use case) produce negative eigenvalues of the double-centered matrix.
+    # Those dimensions cannot be embedded in Euclidean space and must be
+    # clipped to zero; otherwise np.sqrt of a negative eigenvalue silently
+    # fills the embedding with NaNs. Non-regression test for a bug where
+    # negative eigenvalues were passed to np.sqrt unclipped.
+    rng = np.random.RandomState(12)
+    A = rng.rand(5, 5)
+    dissimilarity = np.abs(A + A.T)
+    np.fill_diagonal(dissimilarity, 0)
+
+    est = ClassicalMDS(n_components=4, metric="precomputed").fit(dissimilarity)
+
+    assert np.isfinite(est.embedding_).all()
+    assert np.all(est.eigenvalues_ >= 0)
+
+
+def test_classical_mds_rank_deficient_no_nan():
+    # When n_components exceeds the numerical rank of Euclidean input, the
+    # excess eigenvalues returned by eigh are tiny and frequently slightly
+    # negative due to floating-point error, which np.sqrt turns into NaNs.
+    # Here the five points are collinear (rank 1) while n_components=4.
+    X = np.array([[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0]])
+
+    est = ClassicalMDS(n_components=4, metric="euclidean").fit(X)
+
+    assert np.isfinite(est.embedding_).all()
+    assert np.all(est.eigenvalues_ >= 0)
